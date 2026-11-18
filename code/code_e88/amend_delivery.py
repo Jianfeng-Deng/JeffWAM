@@ -1,0 +1,24 @@
+import json,fcntl,os
+from pathlib import Path
+from e88.common import *
+from e88.train import source_hash
+run=ART/'smoke_03'
+def read(p):return json.loads(Path(p).read_text())
+def table(head,rs):return '\n'.join(['|'+'|'.join(head)+'|','|'+'|'.join(['---']*len(head))+'|']+['|'+'|'.join(map(str,r))+'|' for r in rs])
+if (ART/'FINAL_DELIVERY.json').exists():raise FileExistsError('Final receipt exists')
+old=read(ART/'DELIVERY_READY.json');ledger=read(ART/'gpu_ledger.json');assert not ledger.get('active') and ledger['elapsed_s']<9000;assert source_hash()==old['code_sha256']
+prof=read(run/'profile_01/READY.json')['results'];conditions=read(run/'profile_conditions_01/READY.json')['results'];rates={'short':prof['P3'],'none':conditions['none'],'long':conditions['long']};p1=prof['P1']['mean_s'];worst=max(v['mean_s'] for v in rates.values());single=(p1*5000+worst*10000)/3600*1.25;three=(p1*5000+3*worst*10000)/3600*1.25
+allstep=lambda d:d['mean_s']+3*d['chain_steps']/d['measured_steps']*max(0.,d['mean_chain_s']-d['mean_normal_s'])
+allp1=allstep(prof['P1']);allp3=max(allstep(d) for d in rates.values());allcost=(allp1*5000+allp3*10000)/3600*1.25
+estimate=dict(measured_P1_s=p1,measured_P3_s={k:v['mean_s'] for k,v in rates.items()},conservative_P3_s=worst,single_P1_5000_P3_10000_with_25pct_margin_GPUh=single,three_language_conditions_one_seed_with_margin_GPUh=three,three_seeds_shared_P1_per_seed_GPUh=3*three,every_eligible_W_update_chain_rough_GPUh_with_margin=allcost,chain_contract='measured1/4cadence, max2windows per chain,2Euler. all-update estimate from measured chain-minus-normal; mode/I/O confounded, not measured full batch32 chain',timing_caveat='sequential profiles share page cache; none/long measured later are warm. Do not attribute timing differences to language. Use slowest measured P3 rate for budget; excludes queue/evaluation/cache rebuild')
+atomic(run/'formal_estimate_conservative_v2.json',estimate);gpu=ledger['elapsed_s']/3600;dev=read(run/'dev_world_01/metrics.json');rows=[]
+for h,v in dev.items():
+ d=v['overall'];f=lambda k:'NA' if d[k] is None else f'{d[k]:.4f}';rows.append([h,d['windows'],d['parents'],f('model'),f('copy'),f('linear'),f('skill_copy')])
+report('## 最终复核与预算修订（'+brt()+' BRT）\n\n本节为最终口径，补充/替代前文预算点估计；旧收据保留，最终收据为code_e88/artifacts/FINAL_DELIVERY.json。\n\n'+
+'### 原dev窗口的世界参考\n\n固定P3_long阶段末，W-only，无状态/动作条件，仅既有人工短指令；dev48窗/6parent，使用原dev缓存，新增语言标签0、新增特征0。长时域缺缓存明确NA，不从训练标签填充。\n\n'+table(['+帧','窗','parent','model MSE','copy MSE','linear MSE','skill_copy'],rows)+'\n\n'+
+'### 正式GPUh保守预算\n\n实测P1='+f'{p1:.4f}'+'s/step；P3 short/none/long='+ '/'.join(f'{rates[k]["mean_s"]:.4f}' for k in ('short','none','long'))+'s/step。不同条件顺序运行，后测复用页缓存，不能解释为长文本更快。正式预算取测得最慢P3='+f'{worst:.4f}'+'s/step：P1 5000 + P3 10000，含25%余量约 **'+f'{single:.3f}'+'GPUh/单链**；三语言共享每seed一份P1约'+f'{three:.3f}'+'GPUh/seed，3 seeds约'+f'{three*3:.3f}'+'GPUh。\n\n测量配方为每4更新抽一条链、至多2窗、2Euler；若正式每个合格W更新都施加链，按实测链/普通步差粗估单链约'+f'{allcost:.3f}'+'GPUh（已含25%），受模式与I/O混杂，仅预算外推。若改为全batch32重入链或更多Euler，必须另做profile。正式P1收敛门默认关闭，烟雾明确使用engineering_chain_probe，不冒充收敛。\n\n'+
+'### 最终资源与限制\n\n总计'+f'{ledger["elapsed_s"]:.3f}'+'GPU秒='+f'{gpu:.6f}'+'GPUh（含全部停止段、校准、配对训练、恢复、profile、同权重文本消融和dev补充）；台账无active worker。108项CPU合同全部通过，另以非零世界头复核掩码1项通过。旧code_e86源码与复制基线逐文件相同；无下载/LoRA/正式训练，新增特征缓存0。\n\n世界skill仍未胜复制，夹爪误差未验收；极小夹爪头误差是数值训练目标拟合，不代表机械精度。当前阶段监督全部在段末，不能验收进度；应补阶段语义一致的因果前缀标注。none训练支路也关闭对齐，故另以固定同一checkpoint做纯输入文本消融；正式三支须保持对齐目标/权重一致。适配器初次校准保留16窗，之后这些训练窗可能被主训练抽到，不作为独立泛化验收集。正式A/B口径仍待用户决定，默认A；建议最长+100。')
+for path,text in [(T/'docs/experiment_log/EXPERIMENT_LOG.md',f'\nE88-W最终预算/资源复核 {brt()} BRT：补充原dev图像世界参考（0新语言标签/特征）；总{gpu:.6f}GPUh，108 CPU合同+非零头掩码复核通过；顺序profile受缓存影响，保守单链含25%余量{single:.3f}GPUh，三条件3 seeds约{three*3:.3f}GPUh；每步链粗估单链{allcost:.3f}GPUh（max2窗链）。最终收据code_e88/artifacts/FINAL_DELIVERY.json；正式未启动，状态COMPLETE_ENGINEERING_SMOKE_ONLY。\n'),(T/'notes/worklog.md',f'\n- {brt()} BRT E88-W最终复核：{gpu:.6f}GPUh、108合同；补原dev世界指标（无新标注/特征）；保守正式单链{single:.2f}GPUh含余量；FINAL_DELIVERY.json。\n')]:
+ with path.open('a') as f:fcntl.flock(f,fcntl.LOCK_EX);f.write(text);f.flush();os.fsync(f.fileno())
+atomic(ART/'FINAL_DELIVERY.json',dict(status='COMPLETE_ENGINEERING_SMOKE_ONLY',brt=brt(),supersedes_receipt=dict(path=str(ART/'DELIVERY_READY.json'),sha256=sha(ART/'DELIVERY_READY.json')),report=str(REPORT),report_sha256=sha(REPORT),code_sha256=source_hash(),tests=108,extra_nonzero_mask_check=True,GPUh=gpu,formal_training_started=False,conservative_estimate=estimate,files=[dict(path=str(p),sha256=sha(p)) for p in [run/'dev_world_01/READY.json',run/'dev_world_01/metrics.json',run/'formal_estimate_conservative_v2.json',ART/'gpu_ledger.json',run/'gripper_curves.png',run/'gripper_curves.csv']]))
+print(json.dumps(dict(status='ready',GPUh=gpu,tests=108,single_formal_GPUh=single,three_seed_three_condition_GPUh=three*3,every_update_chain_rough_GPUh=allcost)))

@@ -1,0 +1,17 @@
+import json, os, datetime, pathlib, fcntl
+T=pathlib.Path('/mnt/workspace/dengjianfeng/code/lewm_tianji_cpu')
+R=T/'data/e84_piper_align_v1'
+now=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3)))
+run='e84p_'+now.strftime('%Y%m%d_%H%M%S')
+for p in ['features','probes','lora']:
+    (R/p/run).mkdir(parents=True,exist_ok=False)
+(T/'code_e84'/run).mkdir(parents=True,exist_ok=False)
+P=R/'probes'/run
+state={'schema':'e84p-progress-v1','run_id':run,'created_brt':now.isoformat(),'started_utc':datetime.datetime.now(datetime.timezone.utc).timestamp(),'status':'waiting_split','samples_read':0,'gpu_hours':0,'split_checks':[], 'gt_checks':[], 'completed':[],'paths':{'root':str(R),'progress':str(P/'progress.json'),'code':str(T/'code_e84'/run),'features':str(R/'features'/run),'probes':str(P),'lora':str(R/'lora'/run),'report':str(T/'notes'/('e84_P_'+run+'.md'))}}
+(P/'progress.json').write_text(json.dumps(state,ensure_ascii=False,indent=2)+'\n')
+report=f'''# E84-P 对齐探针实验\n\nID: {run}；开始 BRT {now.isoformat()}。状态：等待 READY_split.json；未读任何样本，未训练 WAM。\n\n## 约束与输入\n\n仅 E82 revision3 train parents；E84-F 先锁定 probe-train/probe-val，再读样本。dev/test 不读、不标、不评估。E83 模型语言仅训练监督，不作测试真值或阈值。动作是 next-frame 反馈，无时间平移。禁止下载。共享 GPU 只在显存<512MiB、利用率<5%入场；连续2h无空闲则 CPU 缩小。总GPU≤10h，冻结/探针≤6h，LoRA≤4h，失败运行也计费。新结果不覆盖旧文件。\n\n## 0 权重与 patch 方法\n\n核查中。仅本地 google/siglip2-base-patch16-224，目录不含 preprocessor_config.json；fast tokenizer 可用性与预处理待验证。\n\n## 预注册方案（结果前固定）\n\nseed=20261112。parent 均衡采样，每split最多12000当前时刻；三路当前全局+patch fp16，4个因果历史约0.2s间隔仅缓存全局（按唯一曝光去重），保存图像仿射与有效像素。共享30GB中 P特征硬上限23GB、P探针/LoRA合计2GB，余量至少5GB给F；读已有F大小，若超出共享预算则降低样本量并披露。patch 196×768×2×3×24000≈21.68GB，全局/历史约0.55GB。\n\n实验1：7词表；固定 singleton-MAP patch 描述为主、原始patch余弦为诊断；pointing与inside/outside AUROC，左右切换、颜色、随机文本对照；只用独立真值和可见有效像素，按相机/stratum分层，不以腕ROI当真值。不将demo4投影直接迁移demo6。\n\n实验2：F固定8向×3幅度24句，画面/机器人系分开。冻结零样本比较当前−历史与拼接；冻结特征线性方向/幅度头与≤1M对比头；固定训练epoch，训练parent内部再留校准组，不在probe-val调参。随机基线24类top1=1/24、top3=3/24，8向=1/8，幅度=1/3；同时报告实际类别多数基线、打乱训练标签、parent bootstrap 2000次95%区间。幅度边界只由F的probe-train设定，不使用val拟合。\n\n实验3：小MLP输入因果图像/历史/状态和冻结文本；语言来自FK未来运动，检验语言控制位移而非未来预测。与无语言、打乱语言等预算比较；同一观测逐个更换8方向（幅度固定），报告变化后的方向跟随率、预测与句子方向余弦、预测与真实方向余弦、输出范数；停滞/近零分开，不把零位移的方向定义为正确。\n\n条件LoRA：实验1左右文本切换无效（parent CI不支持优于交换/随机）或实验2零样本8向top1≤0.25，且可训练探针明显优于随机时，rank8，双塔最后2层Q/V，lr=1e-5，固定3epoch/最多4GPUh；难负左右/颜色/反向，原始编码余弦偏离约束0.1。离线cache需独立LoRA版本；val仅最终评估，报告漂移及吞吐，不根据生成标签选checkpoint。若因像素不可观测/真值不足失败，先报告数据限制，不冒称LoRA可修复。\n\n## 1 冻结特征\n\n待split。\n\n## 2 语言—图像\n\n待GT。\n\n## 3 语言—像素运动\n\n待GT。\n\n## 4 语言—动作反事实\n\n待FK。\n\n## 5 LoRA条件分支\n\n未触发。\n\n## 6 E83与FK信息量\n\n报告已有：E83-A完成9parent；E83-B94parent，英文完整指令仅8种、最短改写1种。待split锁定后仅统计允许parent的主JSONL，报告唯一句子、熵与parent对应，不能以措辞差异冒充行为可控性。\n\n## 7 资源、结果、局限与决策\n\n未有实验结果，不据此选择冻结/LoRA/更强VLM。标定仅demo4可信范围，demo6沿用demo4为NO-GO。进度 `{P/'progress.json'}`。\n'''
+pathlib.Path(state['paths']['report']).write_text(report)
+for path,line in [(T/'docs/experiment_log/EXPERIMENT_LOG.md',f'\n## E84-P {run} | {now.isoformat()}\n- 目标：模型无关真值检验三类对齐，决定阶段一；不训练WAM。\n- 改动：新建报告、进度与专属特征/探针/LoRA/代码目录；严格等待F split/GT。\n- 命令：`python3 code_e84/{run}/bootstrap.py`（原始初始化脚本）；后续命令见报告。\n- 目录：`{P}`；报告：`{state["paths"]["report"]}`。\n- 结果/结论：待实验，禁止读取dev/test。状态：running_waiting_split。\n'),(T/'notes/worklog.md',f'\n- {now.isoformat()} E84-P {run}：建立报告/断点，等待F READY_split/READY_fk_gt；未读样本、0 GPUh。\n')]:
+    with path.open('a') as f:
+        fcntl.flock(f,fcntl.LOCK_EX); f.write(line); f.flush(); os.fsync(f.fileno())
+print(json.dumps(state,ensure_ascii=False))

@@ -1,0 +1,1 @@
+E73 formal training authorized. Detached one-GPU supervisor, seed6601, decoder1500 -> flow5400 -> world5400, batch16, automatic E66 action/world diagnostics/report, cumulative ceiling8 GPUh including preflight/eval. Decoder gate mandatory. No semantic reranking. See runs/e73_causal_wam_20261111/PROTOCOL_FORMAL.md.

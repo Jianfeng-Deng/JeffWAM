@@ -1,0 +1,6 @@
+"""Immutable E86-V3 session pins; published pool remains unchanged."""
+V3_HASH='beaf61055b61f04064203683e8dc6275eb2bae35810b281fa5853df409802964'
+V3_RECEIPT_HASH='334a8052aff706bf9a7740763297966f1a1601f21518b40d768622d37f8c0831'
+EXCLUSION_PATH='/mnt/workspace/dengjianfeng/code/lewm_tianji_cpu/data/e82_piper_v1/exclusions_episode142_E86_V3_20261113.json'
+EXCLUSION_HASH='580b13127fa54764c685cc4335ae6505b4200055998a5effe86c31b87018f0e2'
+EXCLUDED_CANONICAL='piper_4dc107335389f5711a0f65e0'

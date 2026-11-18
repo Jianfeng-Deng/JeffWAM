@@ -1,0 +1,7 @@
+import json,fcntl
+from pathlib import Path
+T=Path('/mnt/workspace/dengjianfeng/code/lewm_tianji_cpu');R=T/'results/e93_dev_diag_20261114_01';dd=json.loads((R/'linear_summary.json').read_text());method=json.loads((R/'linear_method.json').read_text());lines=['\n## B5 CPU 线性可学习性参照（完成）','只在242个训练parent上取最多12个等距原始训练窗（10/25/50各2888窗，100有效2375窗）。输入为当前相机/空间token的PCA64坐标、四个同位置历史减当前的PCA64坐标、四个历史有效标记及相机/位置onehot；输出完整768D归一化残差。整体仍是原始特征的线性函数，没有非线性网络、episode/window ID或未来输入。','PCA只在内层拟合训练parent上拟合，保留当前特征方差约78.0%；seed9305固定抽48个训练parent作内层验证，在alpha=1e−4/1e−3/.01/.1/1/10中按训练验证parent等权MSE选择；四时域均选.1。然后用全部242训练parent重拟合系数；dev只评一次，没有按dev选alpha、维度或checkpoint。CPU闭式岭拟合约334.55秒，GPUh=0。', '|+帧|dev窗/parent|ridge MSE|copy MSE|skill % [95% parent CI]|归一化残差方向cos|','|---|---|---:|---:|---|---:|']
+for h,r in dd.items():
+ v=r['values'];ci=r['ci95']['skill_copy'];lines.append(f'|{h}|{r["windows"]}/{r["parents"]}|{v["model"]:.6f}|{v["copy"]:.6f}|{100*v["skill_copy"]:.3f} [{100*ci[0]:.3f}, {100*ci[1]:.3f}]|{v["cosine"]:.5f}|')
+lines+=['所有时域都胜复制、区间均>0；在该固定表示/输入下存在可泛化的线性可预测部分，不能将E90负skill归因为目标主要不可预测。线性参照的容量、输入组织、MSE损失及训练采样与神经FM不同，能定位“模型/目标/优化路径有差距”，不能单独判定究竟是哪一个。PCA限制意味着即使该参照失败也不足以证明目标不可预测；本轮实际并未失败。','完整方法/正则扫描/训练parent名单：linear_method.json；逐窗结果linear_records.json；系数ridge_h{10,25,50,100}_coefficients.npz。没有训练或更新任何神经模型。初次CPU脚本缺threadpoolctl直接退出；移除非必要依赖后继续，无安装。另一次等待脚本受v1收尾断言中止，均0GPUh，失败日志保留。']
+with (T/'notes/e93_dev_diag_20261114.md').open('a') as f:fcntl.flock(f,fcntl.LOCK_EX);f.write('\n'.join(lines)+'\n')

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pt
+*.pth
+*.npy
+*.npz
+*.pkl
+*.mp4
+*.hdf5
+.DS_Store

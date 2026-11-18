@@ -1,0 +1,11 @@
+# E94a / unified readout v1
+
+Frozen SigLIP2 2x4 residual target and training RMS normalization, Piper P1 only. Original e86/e88/e90 copied sources are regression references and read-only entrypoints. Execute only `e94a` entrypoints.
+
+Reusable modules: `e94a.model.WorldModel`, `e94a.objective.loss`, `e94a.objective.chain_loss`. Depend on the copied E90/e88/e86 model, generator and objective utilities. `WorldModel(c=Config(...,latent=target_dim),recipe='M1'|'M2',readout_hidden=1024)`; defaults 6x256 / 8 heads / FFN1024 / latent768. `mean_query` plus continuous learned horizon projection, spatial position and W kind, without noise or FM time, enters the same Transformer under E90 directional masks. `mean_head` and FM `world_head` each Linear(width,1024), GELU, Linear(1024,latent); final weights/bias initialized zero. Output affine span is not limited to width256 once learned. This does not increase the dimension of the Transformer's causal representation.
+
+`forward_mean(batch)['mean']` is normalized residual; `mean_rollout(batch)` restores raw future features with current+mean*scale. Batch keys/layout identical to E90; only target shape is read to allocate queries. `forward(batch,w=noisy,tw=t)['world']` remains FM velocity for M2; M1 raises on FM calls. `rollout` inherited from E90 is FM sampling; use only M2. Chain explicitly calls mean_rollout (first/direct under no_grad, second trainable). M1 and M2 keep .1 original short cosine, .1 adapter, original gated chain schedule; M2 mean MSE and original FM loss weights each1. P1 action/alignment/phase weights zero. Target dimension configurable for E94b; recompute target-specific training-only normalization outside this module.
+
+Train command (from code_e94a):
+`PYTHONDONTWRITEBYTECODE=1 /mnt/workspace/dengjianfeng/venvs/e29/bin/python -u -m e94a.train e94a_m1_p1_20261114_01 --recipe M1`
+Use M2 and separate new run ID for M2. Results under T/results/<run_id>, shared GPU ledger under results/e94a_control_20261114_01, total7200s incl failures. No automatic old6-parent eval; separate fixed E93-window evaluator after both fixed5000 checkpoints. No dev checkpoint selection. `--resume` targets a new run and validates source/config/data, restores model/optimizer/scheduler/RNG/sampler. Never run the copied old preflight or training writers.

@@ -1,0 +1,22 @@
+import pathlib
+C=pathlib.Path('/mnt/workspace/dengjianfeng/code/lewm_tianji_cpu/code_e84/e84lora_20261113_042425')
+p=C/'evaluation_data.py';s=p.read_text().replace("root=R/'features'/RUN/version", "root=R/'features'/(OLD if version=='frozen' else RUN)/version");p.write_text(s)
+p=C/'prepare_train.py';s=p.read_text().replace("selection['parents'].get(x['parent'])", "json.loads((R/'split/probe_split.json').read_text())['parents'].get(x['parent'])");p.write_text(s)
+for name in ['run_motion.py','run_behavior.py']:
+ p=C/name;s=p.read_text().replace("str(R/'lora'/RUN/'adapter.pt') if version=='lora' else None", "str(L/version/'adapter.pt') if version!='frozen' else None");p.write_text(s)
+p=C/'run_pixel.py';s=p.read_text().replace('def main():',"def main(version='lora'):").replace("root=P/'frozen'","root=P/version").replace("features=R/'features'/RUN/'frozen'","features=R/'features'/RUN/version").replace("encoder=Encoder('cpu');", "encoder=Encoder('cpu',str(L/version/'adapter.pt')); ").replace("if __name__=='__main__':main()", "if __name__=='__main__':\n import sys\n main(sys.argv[1] if len(sys.argv)>1 else 'lora')");p.write_text(s)
+p=C/'extract.py';s=p.read_text().replace('from gpu_budget import GPUBudget', '')
+s=s.replace("version='frozen' if adapter is None else 'lora'", "version=os.environ['VARIANT']")
+s=s.replace("_budget=GPUBudget('frozen' if adapter is None else 'lora',device.startswith('cuda'))", "_budget=None").replace('guard.budget=_budget','')
+s=s.replace('_budget.heartbeat()','guard.check()').replace('batch_size=8','batch_size=8')
+s=s.replace("if version=='frozen' or (rows[ni]['probe_split']=='probe-val' and rows[ni]['mandatory_gt_coverage']):patches[ni,ci]=p[bi]",'pass # all temporal shards contain global only; pixel150 has the only patch cache')
+s=s.replace("patch_features=patches,",'').replace("patch_available=np.array([version=='frozen' or (r['probe_split']=='probe-val' and r['mandatory_gt_coverage']) for r in rows]),",'')
+s=s.replace("estimated_shard=len(rows)*(3*196*768*2+7*3*768*2+2048)","estimated_shard=len(rows)*(7*3*768*2+2048)")
+s=s.replace("assert baseline_features+written_bytes+estimated_shard<23_000_000_000", "assert baseline_features+written_bytes+estimated_shard<3_000_000_000")
+s=s.replace("save=np.savez if version=='frozen' else np.savez_compressed", "save=np.savez_compressed")
+s=s.replace("'patch_scope':'all selected current frames' if version=='frozen' else 'heldout mandatory GT anchors only; other patch arrays are unavailable placeholders and must never be scored'", "'patch_scope':'pixel_150.npz only; temporal shard contains no patch array'")
+# source exception closes guard ledger and records OOM; monitor process never alters others.
+s=s.replace('guard=Guard()', 'guard=Guard();globals()["_guard"]=guard')
+s=s.replace("if _budget is not None:_budget.close()", "if globals().get('_guard') is not None:globals()['_guard'].finish()")
+p.write_text(s)
+print('patched',C)
