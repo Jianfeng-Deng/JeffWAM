@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 390" width="1000" height="390" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arr-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill="#64748b" />
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill="#2563eb" />
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill="#7c3aed" />
+    </marker>
+    <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill="#d97706" />
+    </marker>
+  </defs>
+
+  <!-- Crisp Background Card (works on both GitHub Light and Dark themes) -->
+  <rect x="2" y="2" width="996" height="386" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+
+  <!-- Title Bar -->
+  <text x="24" y="30" font-size="15" font-weight="700" fill="#0f172a">JeffWAM v1.0 Architecture — 双臂 Piper 世界-动作模型架构（E134_FM_res + M3 控制器）</text>
+  <line x1="20" y1="42" x2="980" y2="42" stroke="#e2e8f0" stroke-width="1" />
+
+  <!-- Stage Column Labels -->
+  <text x="106" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#64748b">1. 多模态输入</text>
+  <text x="358" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#64748b">2. 共享 Transformer 主干</text>
+  <text x="655" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#64748b">3. 动作与世界输出头</text>
+  <text x="900" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#64748b">4. 物理执行</text>
+
+  <!-- ==================== COLUMN 1: INPUTS ==================== -->
+  <!-- Vision O -->
+  <rect x="24" y="74" width="164" height="80" rx="10" fill="#f8fafc" stroke="#2563eb" stroke-width="1.6" />
+  <text x="106" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">三路相机视觉 O</text>
+  <text x="106" y="114" text-anchor="middle" font-size="11" fill="#475569">顶视 + 左腕 + 右腕</text>
+  <text x="106" y="130" text-anchor="middle" font-size="11" fill="#475569">冻结 SigLIP2 特征</text>
+  <text x="106" y="145" text-anchor="middle" font-size="10.5" font-weight="600" fill="#2563eb">当前 24 + 历史4帧池化 32</text>
+
+  <!-- Language T -->
+  <rect x="24" y="168" width="164" height="56" rx="10" fill="#f8fafc" stroke="#0d9488" stroke-width="1.6" />
+  <text x="106" y="190" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">语言指令 T</text>
+  <text x="106" y="210" text-anchor="middle" font-size="11" fill="#475569">SigLIP2 文本嵌入 (768维)</text>
+
+  <!-- Proprioception S -->
+  <rect x="24" y="238" width="164" height="82" rx="10" fill="#f8fafc" stroke="#0284c7" stroke-width="1.6" />
+  <text x="106" y="260" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">因果本体状态 S</text>
+  <text x="106" y="278" text-anchor="middle" font-size="11" fill="#475569">当前 14 维关节 + 历史</text>
+  <text x="106" y="294" text-anchor="middle" font-size="11" fill="#475569">含 t-1 / t-3 因果速度</text>
+  <text x="106" y="310" text-anchor="middle" font-size="10.5" font-weight="600" fill="#0284c7">230维 → 1个状态 Token</text>
+
+  <!-- ==================== COLUMN 2: SHARED BACKBONE ==================== -->
+  <rect x="244" y="76" width="228" height="242" rx="12" fill="#f8fafc" stroke="#1e40af" stroke-width="2" />
+  <text x="358" y="101" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">共享 6 层 Transformer</text>
+  <text x="358" y="119" text-anchor="middle" font-size="11" fill="#475569">隐层宽度 256 · 分组因果注意力掩码</text>
+
+  <!-- Pass 1 -->
+  <rect x="258" y="133" width="200" height="74" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.3" />
+  <text x="358" y="153" text-anchor="middle" font-size="12" font-weight="700" fill="#1d4ed8">Pass 1：动作前向 (O → A)</text>
+  <text x="358" y="171" text-anchor="middle" font-size="11" fill="#475569">[O, T, S] + 50 步动作查询</text>
+  <text x="358" y="189" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">输出：st_out 与 50步隐特征 ah</text>
+
+  <!-- Pass 2 -->
+  <rect x="258" y="222" width="200" height="82" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.3" stroke-dasharray="4 3" />
+  <text x="358" y="242" text-anchor="middle" font-size="12" font-weight="700" fill="#6d28d9">Pass 2：世界前向 (O + R → W)</text>
+  <text x="358" y="260" text-anchor="middle" font-size="11" fill="#475569">[O, T] + 101步机械臂轨迹 R</text>
+  <text x="358" y="277" text-anchor="middle" font-size="11" fill="#475569">+ 未来时距查询 (+10/25/50/100)</text>
+  <text x="358" y="294" text-anchor="middle" font-size="10.5" font-weight="600" fill="#6d28d9">不看 A，两趟独立前向防泄漏</text>
+
+  <!-- ==================== COLUMN 3: HEADS ==================== -->
+  <!-- Arm Head -->
+  <rect x="532" y="74" width="246" height="104" rx="10" fill="#f8fafc" stroke="#2563eb" stroke-width="1.8" />
+  <text x="655" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f172a">手臂动作头：底座 + 残差流匹配</text>
+
+  <rect x="544" y="105" width="106" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" />
+  <text x="597" y="123" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">确定性底座 μ</text>
+  <text x="597" y="139" text-anchor="middle" font-size="10" fill="#64748b">3D位姿+速度损失</text>
+
+  <text x="656" y="131" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">+</text>
+
+  <rect x="663" y="105" width="104" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" />
+  <text x="715" y="123" text-anchor="middle" font-size="11" font-weight="600" fill="#1d4ed8">残差流 Δ_FM</text>
+  <text x="715" y="139" text-anchor="middle" font-size="10" fill="#475569">4层DiT · 8步ODE</text>
+
+  <text x="655" y="167" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">→ 未来 50 步双臂 12 维关节目标</text>
+
+  <!-- Decoupled Gripper Switch Head -->
+  <rect x="532" y="190" width="246" height="70" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.6" />
+  <text x="655" y="211" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f172a">解耦夹爪跳变头 (stop-grad)</text>
+  <text x="655" y="229" text-anchor="middle" font-size="11" fill="#475569">1D-Conv + 切换帧 CDF 概率预测</text>
+  <text x="655" y="247" text-anchor="middle" font-size="11" font-weight="600" fill="#b45309">→ 未来 50 步左右夹爪 开 / 合</text>
+
+  <!-- World Head -->
+  <rect x="532" y="272" width="246" height="70" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.6" />
+  <text x="655" y="293" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f172a">均值世界头 (World Head)</text>
+  <text x="655" y="311" text-anchor="middle" font-size="11" fill="#475569">预测未来视觉特征残差 ΔO (+10~100帧)</text>
+  <text x="655" y="329" text-anchor="middle" font-size="11" font-weight="600" fill="#6d28d9">→ 联合共训表征 &amp; 候选动作评估</text>
+
+  <!-- ==================== COLUMN 4: EXECUTION ==================== -->
+  <rect x="822" y="98" width="154" height="148" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.8" />
+  <text x="899" y="124" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">M3 闭环控制器</text>
+  <text x="899" y="144" text-anchor="middle" font-size="11" fill="#475569">200Hz MIT 阻抗</text>
+  <text x="899" y="161" text-anchor="middle" font-size="11" fill="#475569">+ 速度前馈 &amp; 重力补偿</text>
+  <text x="899" y="178" text-anchor="middle" font-size="11" fill="#475569">+ 防滞后参考系锚定</text>
+  <line x1="838" y1="191" x2="960" y2="191" stroke="#bbf7d0" stroke-width="1.2" />
+  <text x="899" y="211" text-anchor="middle" font-size="11.5" font-weight="700" fill="#15803d">双臂 Piper 执行</text>
+  <text x="899" y="230" text-anchor="middle" font-size="10.5" fill="#475569">每 10~15 帧重规划</text>
+
+  <!-- ==================== FLOW ARROWS ==================== -->
+  <!-- Inputs -> Backbone -->
+  <path d="M 188 114 C 214 114, 216 154, 242 154" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arr-gray)" />
+  <path d="M 188 196 L 242 196" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arr-gray)" />
+  <path d="M 188 279 C 216 279, 216 177, 242 177" fill="none" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arr-blue)" />
+
+  <!-- Pass 1 -> Arm & Gripper -->
+  <path d="M 472 164 C 502 164, 502 126, 530 126" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arr-blue)" />
+  <path d="M 472 178 C 502 178, 502 225, 530 225" fill="none" stroke="#d97706" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arr-amber)" />
+
+  <!-- Arm + Gripper -> M3 Controller -->
+  <path d="M 778 126 C 800 126, 800 154, 820 154" fill="none" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arr-blue)" />
+  <path d="M 778 225 C 800 225, 800 190, 820 190" fill="none" stroke="#d97706" stroke-width="1.6" marker-end="url(#arr-amber)" />
+
+  <!-- Pass 2 -> World Head -->
+  <path d="M 472 272 C 502 272, 502 307, 530 307" fill="none" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#arr-purple)" />
+
+  <!-- Action trajectory R feedback into Pass 2 -->
+  <path d="M 899 246 L 899 360 L 358 360 L 358 320" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-purple)" />
+  <rect x="534" y="349" width="242" height="22" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1" />
+  <text x="655" y="364" text-anchor="middle" font-size="11" font-weight="600" fill="#6d28d9">预测动作转为 101 步物理轨迹条件 R</text>
+</svg>

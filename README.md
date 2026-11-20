@@ -1,37 +1,57 @@
-# JeffWAM
+# JeffWAM (Stable v1.0)
 
-双臂（Piper）扎带穿孔任务的 **World-Action Model（WAM）** 研究代码快照，以及全部实验报告。
-A research snapshot of a bimanual (Piper) zip-tie threading **World-Action Model**: code, experiment reports and robot models.
+双臂（Piper）扎带穿孔任务的 **World-Action Model（WAM）** 稳定版本 1（`v1.0.0`）研究代码快照与实验报告。  
+A stable v1.0 research snapshot of a bimanual (Piper) zip-tie threading **World-Action Model**: architecture, code, MuJoCo closed-loop & real-video AR verification, and experiment reports.
 
-> 状态 / Status：研究代码，**不能开箱即用**。数据、权重、特征缓存、视频不在仓库里；代码里的绝对路径指向作者的个人工作站（同事用户名、内部主机名、IP 已脱敏为占位符）。本仓库用于审阅、复现思路和审计，不是发布版框架。
-> Research code, not turnkey: no data, weights, caches or videos are included; absolute paths point to the author's workstation (colleague usernames, hostnames and IPs are replaced with placeholders).
+![JeffWAM v1.0 Architecture](docs/architecture_v1.svg)
 
-## 内容 / Layout
+> **状态 / Status**：研究代码快照（`v1.0.0`），**不含数据集、权重、特征缓存与原始视频**；代码里的路径指向作者工作站，同事用户名、内部主机名与 IP 已脱敏为占位符。  
+> Research snapshot (`v1.0.0`): datasets, checkpoints, caches, and raw videos are excluded; colleague usernames, hostnames, and IPs are replaced with placeholders.
 
-| 目录 | 说明 |
+---
+
+## 架构一句话（v1.0.0：`E134_FM_res` + `M3` 闭环控制器）
+
+冻结的三路 **SigLIP2** 视觉特征（顶视 + 左腕 + 右腕，当前 24 token + 历史 4 帧池化 32 token）+ 语言指令 token + **230 维因果本体状态**（含 `t-1 / t-3` 速度特征）→ **共享 6 层 Transformer 主干**（两趟独立前向，互不泄漏）：
+- **Pass 1（动作生成 `O → A`）**：
+  - **手臂头**：确定性底座 $\mu$（受可微 3D 指尖位置/朝向 + 步进速度斜率损失约束）+ **4 层 AdaLN-Zero 时序残差流匹配头**（`TemporalFlowHead`，8 步 Midpoint ODE 采样）；
+  - **夹爪头**：梯度隔离（`stop-grad`）的 `DecoupledGripperSwitch`（1D-Conv + 切换帧 CDF 概率头），输出未来 50 步左右夹爪开/合；
+  - **物理执行层**：`M3` 200 Hz MIT 阻抗控制器（重力补偿 + 速度前馈 + 防滞后期望参考系重锚定，每 10～15 帧闭环重规划）。
+- **Pass 2（世界预测 `O + R → W`）**：将预测动作转为 101 步物理轨迹条件 `R`，驱动均值世界头预测未来 `+10/+25/+50/+100` 帧视觉特征残差。
+- **独立旁路**：21 因果谓词 → 10 阶段 → 在线 HMM 阶段控制器。详见 [`MODEL.md`](MODEL.md) 与 [`docs/architecture_v1.svg`](docs/architecture_v1.svg)。
+
+---
+
+## 目录说明 / Layout
+
+| 目录 / 文件 | 说明 |
 |---|---|
-| `code/code_e*/` | 各实验的代码（`e82`→`e122`），每个目录对应一次实验或一代模型。主要模型实现：`code_e86`、`code_e88`（v3.1）、`code_e98w`、`code_e99w2`、`code_e102a`（动作头 A2） |
-| `notes/` | 实验报告与每轮结论（含所有失败与否定结果）；`worklog.md` 是按时间的决策记录 |
-| `docs/` | 方向分析、文献综述、实验日志（`docs/experiment_log/EXPERIMENT_LOG.md`） |
-| `robot_models/marvin_m6/` | Marvin M6 双臂 URDF 与 STL 网格（第三方厂商资源，见 `NOTICE.md`）。**Piper 的正运动学链是写在代码里的常量，没有 URDF 文件** |
-| `MODEL.md` | 当前模型结构说明 |
+| `docs/architecture_v1.svg` | 稳定版本 1 模型架构与两趟数据流总图 |
+| `code/code_e82` → `code/code_e122` | 早期基础架构、世界头与语言/阶段探针实验（A2 路径基线为 `code_e102a` / `code_e106c`） |
+| `code/code_e123` → `code/code_e130` | 世界头局部敏感性、阶段条件证伪、全池联合共训、`230-D` 因果速度升级与误差归因诊断 |
+| `code/code_e131` → `code/code_e132` | 双臂 Piper 精确运动学 MuJoCo 闭环仿真基准（0.000mm FK 对齐）与 `M3` 阻抗滞后重规划修复 |
+| `code/code_e133` → `code/code_e134` | **v1.0 核心模型代码**：3D 指尖位姿/速度损失（`G1`）、解耦夹爪跳变头与残差流匹配动作头（`FM_res`） |
+| `code/code_e135/` | 真机实拍视频 + 轮廓自动标定 3D URDF 半透明虚影与 50 步轨迹叠加可视化验证 |
+| `notes/` | 全量实验报告（含所有否定/证伪结论）与按时间排序的 `worklog.md` |
+| `robot_models/marvin_m6/` | Marvin M6 参考网格（第三方资源，见 `NOTICE.md`）；Piper 运动学链直接写在代码中 |
 
-## 当前默认模型一句话
+---
 
-冻结的 SigLIP2 视觉 token（3 相机 × 2×4 × 768）→ O/A/W 三组 token 的共享 Transformer 主干 → 确定性动作头（50 步 Δq + 夹爪开/合）与均值世界头（预测 +10/+25/+50/+100 帧特征残差）；旁路有一个"21 个谓词 → 10 个阶段 → 在线 HMM"的阶段控制器。详见 `MODEL.md`。
+## v1.0 核心验证结果摘要（211 个留出验证窗 / 27 parent）
 
-## 主要结论摘要（均来自 `notes/`，数据规模与口径见各报告）
+| 模型版本 | 前 8 步 `l8` | +50 步位置 / 姿态 | 松爪瞬间位置 / 姿态 | 世界头 `+50 / +100` 保留率 | MuJoCo `M3` 闭环 `S2` / `S4(15mm扰动)` | 碰撞 (桌/臂) |
+|---|---:|---:|---:|---:|---:|---:|
+| `E106-C` (原默认基线) | 0.00783 | 37.99mm / 11.40° | 27.95mm / 8.51° | — | — | — |
+| `E129 WAM_v1` (`230-D` 速度升级) | 0.00709 | 34.98mm / 11.13° | 25.67mm / 7.41° | 11.6% / 2.6% | 35.05mm / 45.58mm | 0/0 , 0/0 |
+| `E133_G1` (+3D位姿/速度斜率) | 0.00695 | 34.57mm / 10.91° | 25.56mm / 7.23° | — | — | — |
+| **`E134_FM_res` (v1.0 残差流匹配)** | **0.00689** | **34.12mm / 10.85°** | **22.69mm / 6.87°** (`s1`) | **19.1% / 8.6%** | **35.81mm / 45.53mm** | **0/0 , 0/0** |
+| `blind_t1` (无视觉纯本体基线) | 0.00560 | 36.63mm / 10.43° | 58.51mm / 15.34° | — | 46.96mm / 59.77mm | 0/2 , 1/2 |
 
-- **世界头**：训练步数越多越好，20000 步仍未饱和；外部数据（ABC、yam）预训练与混训均无收益；多峰/flow/能量分数建模样本塌缩，无收益。
-- **动作头**：确定性 Δq 头优于 flow 头；因果本体历史输入至关重要；夹爪切换时刻（事件 F1）仍是弱项，因果解码规则无效。
-- **阶段控制器**：谓词头 AUROC 约 0.91（因果标签训练）；在 ±90 帧容差下阶段边界召回约 0.73；历史输入未带来收益；因果阶段标签与回顾式标签同帧仅约 50% 一致。
-- **阶段信息进动作头**：真实阶段也无可测收益（P1）；预测未来特征上的谓词读数可反映任务进展，且对动作敏感（P2）。
-- **语言**：现成 SigLIP2 图文空间对本任务的关系性描述几乎不对齐（P3：零样本阶段 top-1 0.036）；语言条件在"强制依赖"的训练下才被使用，且只学到模板而非语义（E119–E122）；MaskCLIP 式桥能恢复颜色/物体的逐 patch 定位（E120）。
-- **局限**：单任务、单演示者、dev 样本少；dev 阶段/谓词标签由模型生成，非人工；没有仿真或实机闭环验证。
+- **真机实拍 AR URDF 叠加验证（`E135`）**：在完整 18.3 秒实拍成功回合（`episode_62`，550 帧）上通过纯臂轮廓标定（`IoU = 0.643`）叠加 3D 预测虚影，全段平均末端误差 `16.7～17.1 mm` / 姿态 `4.4°`；直观验证 WAM 在瓶口抓扎带与左提右松换手节点准确触发夹爪开合（无视觉基线均漏抓/死夹），同时暴露突发大抬臂存在约 38% 幅度偏保守的已知短板。
+
+---
 
 ## 约定与限制
 
-- 仅 Piper 数据；`episode142` 永久排除。
-- 数据与标签：模型生成标签仅作训练目标和开发参考，不作测试真值。
-- 第三方：SigLIP2（Apache-2.0）在代码中通过本地权重加载，未随仓库分发；其余见 `NOTICE.md`。
-- 暂未选择开源许可证（未包含 LICENSE 文件），默认保留所有权利。
+- 仅使用 Piper 真机数据训练（**严禁使用 MuJoCo 仿真数据训练**）；`episode142` 永久排除；动作与标签不做时间平移。
+- 第三方模型与资产说明见 [`NOTICE.md`](NOTICE.md)；暂未选择开源许可证，默认保留所有权利。
